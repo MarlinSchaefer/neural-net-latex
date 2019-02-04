@@ -1,5 +1,6 @@
 import layers as l
 import sys
+import os
 
 class network(object):
     def __init__(self, layers=None, constructor=None):
@@ -70,12 +71,24 @@ class network(object):
     """
     
     def add(self, layer):
+        """Add a layer to the network.
+        
+        Arguments
+        ---------
+        layer : class
+            A layer.layers object with all necessary parameters set.
+        """
         #Check if layer is supported
         if not isinstance(layer, l.layer):
             raise TypeError('Not a supported layer.')
+            sys.exit(1)
+        
+        if len(self.layers) == 0 and layer.input_shape == None:
+            raise TypeError("Input shape of the first layer must not be 'None'.")
+            sys.exit(1)
         
         #Adjust the counting of layer types
-        layer_type = type(layer).__name__
+        layer_type = layer.get_type()
         if layer_type in self.layer_counter:
             self.layer_counter[layer_type] += 1
         else:
@@ -85,12 +98,87 @@ class network(object):
         if layer.name == layer_type:
             layer.set_name(layer_type + '_' + str(self.layer_counter[layer_type]))
         else:
-            tmp_counter = 0
+            tmp_counter = 1
             for existing in self.layers:
                 if existing.name == layer.name:
-                    counter += 1
-            if not counter == 0:
+                    tmp_counter += 1
+            if not tmp_counter == 1:
                 layer.set_name(layer.name + '_' + str(counter))
+        
+        #Fix layer input_shape
+        if layer.input_shape == None:
+            layer.input_shape = self.layers[-1].output_shape
+            layer.update_shapes()
         
         #Add layer to network
         self.layers.append(layer)
+    
+    #TODO: Make this more sufisticated, i.e. customizable
+    def get_first_lines(self):
+        ret = []
+        ret.append('\\begin{figure}\n')
+        ret.append('\\begin{tikzpicture}[\n')
+        ret.append('Dense/.style={circle, draw=black, very thick, minimum size=2cm},\n')
+        ret.append('Conv1D/.style={circle, draw=black, very thick, minimum size=2cm},\n')
+        ret.append(']\n')
+        ret.append('\n')
+        return(ret)
+    
+    def get_last_lines(self):
+        ret = []
+        ret.append('\\end{tikzpicture}\n')
+        ret.append('\\end{figure}\n')
+    
+    def get_latex_lines(self, **kwargs):
+        first_lines = self.get_first_lines()
+        last_lines = self.get_last_lines()
+        raise NotImplementedError('This function does not yet work.')
+        sys.exit(1)
+        
+        core = []
+        
+        if kwargs['ShowMaxFront'] + kwargs['ShowMaxEnd'] >= len(self.layers):
+            layers_front = self.layers
+            layers_end = []
+        else
+            layers_front = self.layers[kwargs['ShowMaxFront']]
+            layers_end = self.layers[kwargs['ShowMaxEnd']]
+        
+        for layer in layers_before:
+            core += layer.get_latex_lines(kwargs['ShowMaxTop'], kwargs['ShowMaxBottom'], kwargs['NeuronSpacing'], kwargs['MaxDepth'])
+        
+        if not len(layers_end) == 0:
+            #TODO: Need two vertical lines with dots in between like to indicate network has more layers in between and to terminate lines.:
+            #   |     |
+            #   | ··· |
+            #   |     |
+            core += #Latex Code for the above
+            for layer in layers_end:
+                core += layer.get_latex_lines(kwargs['ShowMaxTop'], kwargs['ShowMaxBottom'], kwargs['NeuronSpacing'], kwargs['MaxDepth'])
+        
+        return(first_lines + core + last_lines)
+    
+    def to_latex(self, file_name, **kwargs):
+        opt_arg = {}
+        opt_arg['ShowMaxTop'] = 3
+        opt_arg['ShowMaxBottom'] = 3
+        opt_arg['MaxDepth'] = 2
+        opt_arg['ShowMaxFront'] = 3
+        opt_arg['ShowMaxEnd'] = 3
+        opt_arg['LayerSpacing'] = '3cm'
+        opt_arg['NeuronSpacing'] = '1cm'
+        
+        for k, v in kwargs:
+            if k in opt_arg:
+                opt_arg[k] = v
+            else:
+                raise AttributeError("'to_latex' does not have an option '%s'" % str(key))
+                sys.exit(1)
+        
+        lines = self.get_latex_lines(self, **opt_arg)
+        
+        if not os.path.isfile(file_name):
+            with open(file_name, 'w') as FILE:
+                FILE.writelines(lines)
+        else:
+            print('Could not create file, as it already existed.\nRemove the file from the current directory and try again.')
