@@ -3,7 +3,7 @@ class layer(object):
         self.input_shape = input_shape
         self.output_shape = output_shape
         self.name = name
-        self._layer_type = layer_type
+        self._layer_type = _layer_type
     
     def __str__(self):
         s = ''
@@ -30,8 +30,64 @@ class Dense(layer):
     def update_shapes(self):
         return
     
-    def get_latex_lines(ShowMaxTop, ShowMaxBottom, NeuronSpacing, MaxDepth):
+    #Needs to be structured:
+    #%Layer name
+    #(<Code>, Node name)
+    #<Empty Line>
+    def get_latex_lines(self, PrevNeuronName, ShowMaxTop, ShowMaxBottom, NeuronSpacing, LayerSpacing, MaxDepth):
+        from network import get_vertical_skip
+        #Create nodes
+        nodes = []
+        nodes.append(('%%{}\n'.format(self.name), None))
         
+        #In- and output-shapes are assumed to be 1 dimensional
+        #Decide where the cut is
+        #BUG: The input_shape should actually be output shape
+        if ShowMaxTop + ShowMaxBottom >= self.input_shape:
+            neuronsBefore = list(range(self.input_shape))
+            neuronsAfter = []
+        else:
+            neuronsBefore = list(range(ShowMaxTop))
+            neuronsAfter = list(range(self.input_shape - ShowMaxBottom, self.input_shape))
+        
+        #Create neurons before cut
+        #BUG: If Layer sizes don't match the neuron on the smaller layer are still at the same height as the previous layer.
+        for idx, node in enumerate(neuronsBefore):
+            prev_name = PrevNeuronName if idx == 0 else (self.name + '_' + str(neuronsBefore[idx-1]))
+            node_name = self.name + '_' + str(node)
+            if idx == 0:
+                if not prev_name == None:
+                    nodes.append(('\\node[Dense] (' + node_name + ') [' + 'right=' + LayerSpacing + ' of ' + prev_name + '] {};\n', node_name))
+                else:
+                    nodes.append(('\\node[Dense] (' + node_name + ') {};\n', node_name))
+            else:
+                nodes.append(('\\node[Dense] (' + node_name + ') [' + 'below=' + NeuronSpacing + ' of ' + prev_name + '] {};\n', node_name))
+        
+        #Check if cut exists
+        if len(neuronsAfter) > 0:
+            n, name = get_vertical_skip(self.name + '_vskip', nodes[-1][1], NeuronSpacing) 
+            nodes += n
+            for idx, node in enumerate(neuronsAfter):
+                node_name = self.name + '_' + str(node)
+                prev_name = name if idx == 0 else nodes[-1][1]
+                nodes.append(('\\node[Dense] (' + node_name + ') [' + 'below=' + NeuronSpacing + ' of ' + prev_name + '] {};\n', node_name))
+        
+        nodes.append(('\n', None))
+        
+        #All the drawing of lines
+        draw = []
+        node_list = []
+        for node in nodes:
+            if not node[1] == None:
+                node_list.append(node[1])
+        
+        for i in range(min([ShowMaxTop + ShowMaxBottom, self.output_shape])):
+            curr_draw = []
+            for node in node_list:
+                curr_draw.append(('\\draw (' + node + '.east) -- (', '.west);\n'))
+            draw.append(curr_draw)
+        
+        return((nodes, draw))
 
 class Conv1D(layer):
     def __init__(self, number_of_filters, kernel_size, input_shape=None, name='Conv1D'):
@@ -54,3 +110,6 @@ class Conv1D(layer):
         else:
             self.output_shape = (self.input_shape - self.kernel_size + 1, self.number_of_filters)
     
+    def get_latex_lines(PrevNeuronName, ShowMaxTop, ShowMaxBottom, NeuronSpacing, MaxDepth):
+        raise NotImplementedError('get_latex_lines is not implemented in %s' % (self.get_type()))
+        return
